@@ -1,7 +1,7 @@
 from github import Github, GithubException
 import os
 
-gh   = Github(os.environ["GITHUB_TOKEN"])
+gh   = Github(os.environ["GH_TOKEN"])
 repo = gh.get_repo(os.environ["GITHUB_REPO"])
 
 def get_open_issues(n=50):   return list(repo.get_issues(state="open"))[:n]

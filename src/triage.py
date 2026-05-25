@@ -2,7 +2,7 @@ import os, json, time, re, argparse
 import anthropic
 from github import Github, GithubException
 
-GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
+GITHUB_TOKEN = os.environ["GH_TOKEN"]
 ANTHROPIC_KEY = os.environ["ANTHROPIC_API_KEY"]
 REPO_NAME = os.environ["GITHUB_REPO"]
 
