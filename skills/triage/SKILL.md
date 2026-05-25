@@ -1,7 +1,7 @@
 # Skill: Issue Triage
 
 ## What this skill does
-Classifies a GitHub issue into label, priority, and summary using Claude.
+Classifies a GitHub issue into label, priority, and summary using Groq.
 
 ## Input
 - Issue title + body

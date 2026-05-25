@@ -1,6 +1,9 @@
 name: Issue Triage Agent
 
 on:
+  issues:
+    types: [opened, reopened]    #automatic trigger
+  workflow_dispatch:             
   schedule:
     - cron: "0 */6 * * *"
   workflow_dispatch:
@@ -10,7 +13,7 @@ on:
         default: "false"
       repo:
         description: "Single repo e.g. user/repo (blank = all)"
-        
+
 
 jobs:
   triage:
