@@ -1,10 +1,9 @@
 import os, json, time, re, argparse
-import google.generativeai as genai
+from groq import Groq
 from github import Github, GithubException
 
-GH_TOKEN = os.environ["GH_TOKEN"]
-GEMINI_KEY = os.environ["GEMINI_API_KEY"]
-
+GH_TOKEN   = os.environ["GH_TOKEN"]
+GROQ_KEY   = os.environ["GROQ_API_KEY"]
 REPOS_TO_WATCH = [
     "AlfiyaShaikh-10/triage-issues-test2"
 ]
@@ -13,8 +12,7 @@ VALID_LABELS = ["bug", "feature", "question", "docs", "chore"]
 VALID_PRIORITY = ["high", "medium", "low"]
 
 gh = Github(GH_TOKEN)
-genai.configure(api_key=GEMINI_KEY)
-model = genai.GenerativeModel("gemini-2.0-flash")
+client = Groq(api_key=GROQ_KEY)
 
 SYSTEM_PROMPT = """You are an expert GitHub issue triager. Return ONLY a JSON object:
 {

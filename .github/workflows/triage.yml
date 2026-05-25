@@ -2,14 +2,14 @@ name: Issue Triage Agent
 
 on:
   schedule:
-    - cron: "0 */6 * * *"   # har 6 ghante
+    - cron: "0 */6 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
         description: "Dry run? (true/false)"
         default: "false"
       repo:
-        description: "Single repo (blank = all repos)"
+        description: "Single repo e.g. user/repo (blank = all)"
 
 jobs:
   triage:
@@ -17,21 +17,16 @@ jobs:
     permissions:
       issues: write
       contents: read
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
-      - name: Install dependencies
-        run: pip install PyGithub google-generativeai
-
+      - run: pip install PyGithub groq
       - name: Run triage agent
         env:
-          GH_TOKEN:        ${{ secrets.GH_TOKEN }}
-          GEMINI_API_KEY:  ${{ secrets.GEMINI_API_KEY }}
+          GH_TOKEN:       ${{ secrets.GH_TOKEN }}
+          GROQ_API_KEY:   ${{ secrets.GROQ_API_KEY }}
         run: |
           ARGS=""
           [ "${{ github.event.inputs.repo }}" != "" ] && ARGS="--repo ${{ github.event.inputs.repo }}"
