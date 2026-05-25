@@ -1,0 +1,13 @@
+spec_version: "0.1.0"
+name: issue-triage-agent
+version: 0.1.0
+description: Automatically triages GitHub issues using Claude.
+model: claude-sonnet-4-20250514
+soul: SOUL.md
+rules: RULES.md
+skills:
+  - skills/triage/SKILL.md
+tools:
+  - tools/github_tool.py
+memory:
+  - memory/seen_issues.json
