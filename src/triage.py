@@ -1,17 +1,21 @@
 import os, json, time, re, argparse
-import anthropic
+import google.generativeai as genai
 from github import Github, GithubException
 
-GITHUB_TOKEN = os.environ["GH_TOKEN"]
-ANTHROPIC_KEY = os.environ["ANTHROPIC_API_KEY"]
-REPO_NAME = os.environ["GITHUB_REPO"]
+GH_TOKEN = os.environ["GH_TOKEN"]
+GEMINI_KEY = os.environ["GEMINI_API_KEY"]
+
+REPOS_TO_WATCH = [
+    "AlfiyaShaikh-10/triage-issues-test"
+    "AlfiyaShaikh-10/triage-issues-test2"
+]
 
 VALID_LABELS = ["bug", "feature", "question", "docs", "chore"]
 VALID_PRIORITY = ["high", "medium", "low"]
 
-gh = Github(GITHUB_TOKEN)
-claude = anthropic.Anthropic(api_key=ANTHROPIC_KEY)
-repo = gh.get_repo(REPO_NAME)
+gh = Github(GH_TOKEN)
+genai.configure(api_key=GEMINI_KEY)
+model = genai.GenerativeModel("gemini-1.5-flash")
 
 SYSTEM_PROMPT = """You are an expert GitHub issue triager. Return ONLY a JSON object:
 {
@@ -36,107 +40,124 @@ LABEL_COLORS = {
 }
 
 
+def extract_json(text):
+    match = re.search(r"\{.*\}", text, re.DOTALL)
+    if match:
+        return json.loads(match.group())
+    raise ValueError("No JSON found in response")
+
+
 def build_prompt(issue, closed):
     titles = "\n".join(f"  #{i.number}: {i.title}" for i in closed[:40])
     return f"Issue #{issue.number}\nTitle: {issue.title}\nBody:\n{(issue.body or '(empty)')[:2000]}\n\nClosed issues:\n{titles or 'none'}"
 
 
 def classify(issue, closed):
-    msg = claude.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=512,
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": build_prompt(issue, closed)}],
-    )
-    raw = msg.content[0].text.strip()
+    prompt = SYSTEM_PROMPT + "\n\n" + build_prompt(issue, closed)
     try:
-        data = json.loads(raw)
-    except:
-        m = re.search(r"\{.*\}", raw, re.DOTALL)
-        data = json.loads(m.group())
-    data["label"] = data.get("label", "question").lower()
-    data["priority"] = data.get("priority", "low").lower()
-    if data["label"] not in VALID_LABELS:
-        data["label"] = "question"
-    if data["priority"] not in VALID_PRIORITY:
-        data["priority"] = "low"
-    return data
+        response = model.generate_content(prompt)
+        raw = response.text.strip()
+        data = extract_json(raw)
+        data["label"] = data.get("label", "question").lower()
+        data["priority"] = data.get("priority", "low").lower()
+        if data["label"] not in VALID_LABELS:
+            data["label"] = "question"
+        if data["priority"] not in VALID_PRIORITY:
+            data["priority"] = "low"
+        return data
+    except Exception as e:
+        print(f"Classification error: {e}")
+        return {
+            "label": "question",
+            "priority": "low",
+            "summary": "Failed to analyze issue",
+            "suggested_fix": None,
+            "duplicate_of": None,
+            "confidence": 0.0,
+        }
 
 
-def ensure_label(name):
+def ensure_label(repo, name):
     try:
         repo.create_label(name, LABEL_COLORS.get(name, "ededed"))
     except:
         pass
 
 
-def apply_labels(issue, result):
+def apply_labels(repo, issue, result):
     for l in [result["label"], result["priority"]]:
-        ensure_label(l)
+        ensure_label(repo, l)
     issue.add_to_labels(result["label"], result["priority"])
     print(f"  Labels: {result['label']} / {result['priority']}")
 
 
 def post_comment(issue, result):
-    bar = "X" * round(result["confidence"] * 10) + "-" * (
+    bar = "█" * round(result["confidence"] * 10) + "░" * (
         10 - round(result["confidence"] * 10)
     )
-    dup = f"\nDuplicate of #{result['duplicate_of']}" if result["duplicate_of"] else ""
-    fix = f"\nHint: {result['suggested_fix']}" if result.get("suggested_fix") else ""
-    issue.create_comment(
-        f"""### Auto-triage\n**{result['summary']}**{dup}{fix}\n\n|Field|Value|\n|---|---|\n|Type|`{result['label']}`|\n|Priority|`{result['priority']}`|\n|Confidence|`{bar}` {result['confidence']:.0%}|\n\n*Auto-triaged. Maintainer will review.*"""
+    dup = (
+        f"\n> Possible duplicate of #{result['duplicate_of']}"
+        if result["duplicate_of"]
+        else ""
     )
-
-
-def flag_dup(issue, num):
-    try:
-        orig = repo.get_issue(int(num))
-        issue.create_comment(f"Duplicate of #{num} ({orig.title}). Closing.")
-        issue.edit(state="closed")
-        ensure_label("duplicate")
-        issue.add_to_labels("duplicate")
-    except Exception as e:
-        print(f"  Dup error: {e}")
+    fix = f"\n> Hint: {result['suggested_fix']}" if result.get("suggested_fix") else ""
+    issue.create_comment(
+        f"### Auto-triage Summary\n\n"
+        f"**{result['summary']}**\n"
+        f"{dup}{fix}\n\n"
+        f"| Field | Value |\n|---|---|\n"
+        f"| Type | `{result['label']}` |\n"
+        f"| Priority | `{result['priority']}` |\n"
+        f"| Confidence | `{bar}` {result['confidence']:.0%} |\n\n"
+        f"Auto-triaged · Maintainer will review shortly"
+    )
 
 
 def triaged(issue):
     return bool({l.name for l in issue.labels} & set(VALID_LABELS))
 
 
-def triage_all(max_issues=50, dry_run=False):
-    open_i = list(repo.get_issues(state="open"))[:max_issues]
-    closed_i = list(repo.get_issues(state="closed"))[:60]
-    pending = [i for i in open_i if not triaged(i)]
-    print(f"{len(pending)} issues to triage")
-    for issue in pending:
-        print(f"#{issue.number}: {issue.title[:60]}")
-        try:
-            r = classify(issue, closed_i)
-            print(f"  -> {r['label']}/{r['priority']} ({r['confidence']:.0%})")
-            if not dry_run:
-                apply_labels(issue, r)
-                post_comment(issue, r)
-                if r["duplicate_of"]:
-                    flag_dup(issue, r["duplicate_of"])
-            time.sleep(1)
-        except Exception as e:
-            print(f"  Error: {e}")
-    print("Done!")
+def triage_repo(repo_name, dry_run=False):
+    print(f"\nRepo: {repo_name}")
+    try:
+        repo = gh.get_repo(repo_name)
+        open_i = list(repo.get_issues(state="open"))[:50]
+        closed_i = list(repo.get_issues(state="closed"))[:60]
+        pending = [i for i in open_i if not triaged(i)]
+        print(f"   {len(pending)} issues to triage")
+
+        for issue in pending:
+            print(f"  #{issue.number}: {issue.title[:60]}")
+            try:
+                r = classify(issue, closed_i)
+                print(f"    -> {r['label']}/{r['priority']} ({r['confidence']:.0%})")
+                if not dry_run:
+                    apply_labels(repo, issue, r)
+                    post_comment(issue, r)
+                time.sleep(1.5)
+            except Exception as e:
+                print(f"    Error: {e}")
+
+    except Exception as e:
+        print(f"   Repo error: {e}")
+
+
+def triage_all_repos(dry_run=False):
+    print(f"Starting triage for {len(REPOS_TO_WATCH)} repos...")
+    for repo_name in REPOS_TO_WATCH:
+        triage_repo(repo_name, dry_run)
+    print("\nAll repos done!")
 
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("--dry-run", action="store_true")
-    p.add_argument("--max", type=int, default=50)
-    p.add_argument("--issue", type=int, default=None)
+    p.add_argument(
+        "--repo", type=str, default=None, help="Single repo to triage e.g. user/repo"
+    )
     args = p.parse_args()
-    if args.issue:
-        issue = repo.get_issue(args.issue)
-        closed = list(repo.get_issues(state="closed"))[:60]
-        r = classify(issue, closed)
-        print(json.dumps(r, indent=2))
-        if not args.dry_run:
-            apply_labels(issue, r)
-            post_comment(issue, r)
+
+    if args.repo:
+        triage_repo(args.repo, args.dry_run)
     else:
-        triage_all(args.max, args.dry_run)
+        triage_all_repos(args.dry_run)

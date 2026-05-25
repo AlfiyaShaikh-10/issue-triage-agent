@@ -1,47 +1,39 @@
 name: Issue Triage Agent
 
 on:
-  issues:
-    types: [opened, reopened]
   schedule:
-    - cron: "0 */6 * * *"
+    - cron: "0 */6 * * *"   # har 6 ghante
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Dry run?"
+        description: "Dry run? (true/false)"
         default: "false"
-      issue_number:
-        description: "Single issue number (blank = all)"
+      repo:
+        description: "Single repo (blank = all repos)"
 
 jobs:
   triage:
     runs-on: ubuntu-latest
     permissions:
       issues: write
+      contents: read
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install anthropic PyGithub
 
-      - name: Triage single issue
-        if: github.event_name == 'issues'
-        env:
-          GH_TOKEN:      ${{ secrets.GH_TOKEN }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GITHUB_REPO:       ${{ github.repository }}
-        run: python src/triage.py --issue ${{ github.event.issue.number }}
+      - name: Install dependencies
+        run: pip install PyGithub google-generativeai
 
-      - name: Triage batch
-        if: github.event_name != 'issues'
+      - name: Run triage agent
         env:
-          GH_TOKEN:      ${{ secrets.GH_TOKEN }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GITHUB_REPO:       ${{ github.repository }}
+          GH_TOKEN:        ${{ secrets.GH_TOKEN }}
+          GEMINI_API_KEY:  ${{ secrets.GEMINI_API_KEY }}
         run: |
-          ARGS="--max 50"
-          [ "${{ github.event.inputs.issue_number }}" != "" ] && ARGS="--issue ${{ github.event.inputs.issue_number }}"
+          ARGS=""
+          [ "${{ github.event.inputs.repo }}" != "" ] && ARGS="--repo ${{ github.event.inputs.repo }}"
           [ "${{ github.event.inputs.dry_run }}" = "true" ] && ARGS="$ARGS --dry-run"
           python src/triage.py $ARGS
-
