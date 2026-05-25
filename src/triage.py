@@ -25,7 +25,7 @@ SYSTEM_PROMPT = """You are an expert GitHub issue triager. Return ONLY a JSON ob
   "duplicate_of": null,
   "confidence": 0.95
 }
-No markdown, no explanation. JSON only."""
+IMPORTANT: Return ONLY raw JSON. No json fences. No extra text."""
 
 LABEL_COLORS = {
     "bug": "d73a4a",
