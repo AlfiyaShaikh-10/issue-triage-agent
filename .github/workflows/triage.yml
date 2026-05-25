@@ -28,7 +28,7 @@ jobs:
       - name: Triage single issue
         if: github.event_name == 'issues'
         env:
-          GITHUB_TOKEN:      ${{ secrets.GH_TOKEN }}
+          GH_TOKEN:      ${{ secrets.GH_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GITHUB_REPO:       ${{ github.repository }}
         run: python src/triage.py --issue ${{ github.event.issue.number }}
@@ -36,7 +36,7 @@ jobs:
       - name: Triage batch
         if: github.event_name != 'issues'
         env:
-          GITHUB_TOKEN:      ${{ secrets.GH_TOKEN }}
+          GH_TOKEN:      ${{ secrets.GH_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GITHUB_REPO:       ${{ github.repository }}
         run: |
