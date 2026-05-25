@@ -44,3 +44,4 @@ jobs:
           [ "${{ github.event.inputs.issue_number }}" != "" ] && ARGS="--issue ${{ github.event.inputs.issue_number }}"
           [ "${{ github.event.inputs.dry_run }}" = "true" ] && ARGS="$ARGS --dry-run"
           python src/triage.py $ARGS
+
