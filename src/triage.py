@@ -14,7 +14,7 @@ VALID_PRIORITY = ["high", "medium", "low"]
 
 gh = Github(GH_TOKEN)
 genai.configure(api_key=GEMINI_KEY)
-model = genai.GenerativeModel("gemini-1.5-flash")
+model = genai.GenerativeModel("gemini-2.0-flash")
 
 SYSTEM_PROMPT = """You are an expert GitHub issue triager. Return ONLY a JSON object:
 {
