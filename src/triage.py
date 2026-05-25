@@ -50,28 +50,27 @@ def build_prompt(issue, closed):
 
 
 def classify(issue, closed):
-    prompt = SYSTEM_PROMPT + "\n\n" + build_prompt(issue, closed)
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": build_prompt(issue, closed)},
+        ],
+    )
+    raw = response.choices[0].message.content.strip()
+    raw = re.sub(r"```json|```", "", raw).strip()
     try:
-        response = model.generate_content(prompt)
-        raw = response.text.strip()
-        data = extract_json(raw)
-        data["label"] = data.get("label", "question").lower()
-        data["priority"] = data.get("priority", "low").lower()
-        if data["label"] not in VALID_LABELS:
-            data["label"] = "question"
-        if data["priority"] not in VALID_PRIORITY:
-            data["priority"] = "low"
-        return data
-    except Exception as e:
-        print(f"Classification error: {e}")
-        return {
-            "label": "question",
-            "priority": "low",
-            "summary": "Failed to analyze issue",
-            "suggested_fix": None,
-            "duplicate_of": None,
-            "confidence": 0.0,
-        }
+        data = json.loads(raw)
+    except:
+        m = re.search(r"\{.*\}", raw, re.DOTALL)
+        data = json.loads(m.group())
+    data["label"] = data.get("label", "question").lower()
+    data["priority"] = data.get("priority", "low").lower()
+    if data["label"] not in VALID_LABELS:
+        data["label"] = "question"
+    if data["priority"] not in VALID_PRIORITY:
+        data["priority"] = "low"
+    return data
 
 
 def ensure_label(repo, name):
