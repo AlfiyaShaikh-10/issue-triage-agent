@@ -6,7 +6,6 @@ GH_TOKEN = os.environ["GH_TOKEN"]
 GEMINI_KEY = os.environ["GEMINI_API_KEY"]
 
 REPOS_TO_WATCH = [
-    "AlfiyaShaikh-10/triage-issues-test"
     "AlfiyaShaikh-10/triage-issues-test2"
 ]
 
